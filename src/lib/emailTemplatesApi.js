@@ -17,9 +17,13 @@ async function tryUpdateById(apiClient, emailTemplatesPath, id, fullTemplate) {
   const basePath = `/api/${emailTemplatesPath}`;
 
   try {
-    const response = await apiClient.PUT(`${basePath}/${id}`, {
-      body: fullTemplate,
+    // Logto API may not support updating by ID directly
+    // Try using the bulk update endpoint (same as create) with the template including ID
+    const templateWithId = { ...fullTemplate, id };
+    const response = await apiClient.PUT(basePath, {
+      body: { templates: [templateWithId] },
     });
+    const method = "PUT";
 
     // Check response status if available (SDK may include status in response)
     const status = response.status || response.response?.status;
@@ -29,19 +33,25 @@ async function tryUpdateById(apiClient, emailTemplatesPath, id, fullTemplate) {
 
     const result = response.data || response;
 
-    // Case 1: Response has expected fields (id or templateType) - valid success
-    if (result && (result.id || result.templateType)) {
-      return { ok: true, method: "PUT", response: result };
+    // Handle array response (bulk update returns array)
+    let template = result;
+    if (Array.isArray(result) && result.length > 0) {
+      template = result[0]; // Use first item from array
     }
 
-    // Case 2: Empty response (204 No Content or similar) - valid success for PUT
-    // HTTP PUT operations can succeed without returning a body
+    // Case 1: Response has expected fields (id or templateType) - valid success
+    if (template && (template.id || template.templateType)) {
+      return { ok: true, method, response: template };
+    }
+
+    // Case 2: Empty response (204 No Content or similar) - valid success for PUT/PATCH
+    // HTTP PUT/PATCH operations can succeed without returning a body
     if (
       result === undefined ||
       result === null ||
       (typeof result === "object" && Object.keys(result).length === 0)
     ) {
-      return { ok: true, method: "PUT", response: fullTemplate }; // Return the sent template as confirmation
+      return { ok: true, method, response: fullTemplate }; // Return the sent template as confirmation
     }
 
     // Case 3: Response exists but doesn't match expected format - this is suspicious
@@ -60,7 +70,7 @@ async function tryUpdateById(apiClient, emailTemplatesPath, id, fullTemplate) {
         `[WARN] Unexpected response format for template update (id=${id}):`,
         JSON.stringify(result)
       );
-      return { ok: true, method: "PUT", response: result };
+      return { ok: true, method, response: result };
     }
 
     // Case 4: Unexpected response type - this should not happen
@@ -68,14 +78,16 @@ async function tryUpdateById(apiClient, emailTemplatesPath, id, fullTemplate) {
       `Update succeeded but response format is invalid: received ${typeof result}`
     );
   } catch (error) {
+    const errorStatus = error?.status || error?.response?.status;
+    const errorMethod = errorStatus === 405 ? "PATCH/PUT" : (error?.method || "PATCH/PUT");
     const errorInfo = {
-      method: "PUT",
+      method: errorMethod,
       url: `${basePath}/${id}`,
-      status: error?.status || error?.response?.status,
+      status: errorStatus,
       message: error?.message || String(error),
       response: error?.response?.data || error?.data || error?.body,
     };
-    return { ok: false, method: "PUT", error, errorInfo };
+    return { ok: false, method: errorMethod, error, errorInfo };
   }
 }
 
