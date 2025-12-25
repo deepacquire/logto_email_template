@@ -39,9 +39,7 @@ export async function listEmailTemplates(apiClient, emailTemplatesPath) {
  */
 async function tryUpdateById(apiClient, emailTemplatesPath, id, fullTemplate) {
   const basePath = `/api/${emailTemplatesPath}`;
-  const errors = [];
   
-  // Strategy A: PUT {id} with full template
   try {
     const response = await apiClient.PUT(`${basePath}/${id}`, {
       body: fullTemplate,
@@ -50,69 +48,17 @@ async function tryUpdateById(apiClient, emailTemplatesPath, id, fullTemplate) {
     if (result && (result.id || result.templateType)) {
       return { ok: true, method: 'PUT', response: result };
     }
+    throw new Error('Update succeeded but response format is invalid');
   } catch (error) {
     const errorInfo = {
       method: 'PUT',
       url: `${basePath}/${id}`,
       status: error?.status || error?.response?.status,
-      statusText: error?.statusText || error?.response?.statusText,
       message: error?.message || String(error),
       response: error?.response?.data || error?.data || error?.body,
     };
-    errors.push(errorInfo);
-    if (error?.status !== 404 && error?.status !== 405) {
-      return { ok: false, method: 'PUT', error, errors: [errorInfo] };
-    }
+    return { ok: false, method: 'PUT', error, errorInfo };
   }
-
-  // Strategy B: PUT base with templates array (batch update)
-  try {
-    const response = await apiClient.PUT(basePath, {
-      body: { templates: [fullTemplate] },
-    });
-    const result = response.data || response;
-    if (result) {
-      const template = Array.isArray(result) ? result.find(t => t.id === id) || result[0] : result;
-      if (template && (template.id || template.templateType)) {
-        return { ok: true, method: 'PUT (batch)', response: template };
-      }
-    }
-  } catch (error) {
-    const errorInfo = {
-      method: 'PUT (batch)',
-      url: basePath,
-      status: error?.status || error?.response?.status,
-      statusText: error?.statusText || error?.response?.statusText,
-      message: error?.message || String(error),
-      response: error?.response?.data || error?.data || error?.body,
-    };
-    errors.push(errorInfo);
-  }
-
-  // Strategy C: PATCH {id} with full template
-  try {
-    const response = await apiClient.PATCH(`${basePath}/${id}`, {
-      body: fullTemplate,
-    });
-    const result = response.data || response;
-    if (result && (result.id || result.templateType)) {
-      return { ok: true, method: 'PATCH', response: result };
-    }
-  } catch (error) {
-    const errorInfo = {
-      method: 'PATCH',
-      url: `${basePath}/${id}`,
-      status: error?.status || error?.response?.status,
-      statusText: error?.statusText || error?.response?.statusText,
-      message: error?.message || String(error),
-      response: error?.response?.data || error?.data || error?.body,
-    };
-    errors.push(errorInfo);
-  }
-
-  const combinedError = new Error('All update strategies failed');
-  combinedError.errors = errors;
-  return { ok: false, method: 'PUT', error: combinedError, errors };
 }
 
 /**
@@ -124,9 +70,7 @@ async function tryUpdateById(apiClient, emailTemplatesPath, id, fullTemplate) {
  */
 async function tryCreate(apiClient, emailTemplatesPath, fullTemplate) {
   const basePath = `/api/${emailTemplatesPath}`;
-  const errors = [];
   
-  // Strategy A: PUT with templates array (batch upsert - correct format)
   try {
     const response = await apiClient.PUT(basePath, {
       body: { templates: [fullTemplate] },
@@ -136,58 +80,24 @@ async function tryCreate(apiClient, emailTemplatesPath, fullTemplate) {
       // If response is array, return first item; otherwise return as-is
       const template = Array.isArray(result) ? result[0] : result;
       if (template && (template.id || template.templateType)) {
-        return { ok: true, method: 'PUT (batch)', response: template };
+        return { ok: true, method: 'PUT', response: template };
       }
       // If result is the full template object directly
       if (result.templateType || result.languageTag) {
-        return { ok: true, method: 'PUT (batch)', response: result };
+        return { ok: true, method: 'PUT', response: result };
       }
     }
-    if (response.error) {
-      throw response.error;
-    }
+    throw new Error('Create succeeded but response format is invalid');
   } catch (error) {
     const errorInfo = {
-      method: 'PUT (batch)',
+      method: 'PUT',
       url: basePath,
       status: error?.status || error?.response?.status,
-      statusText: error?.statusText || error?.response?.statusText,
       message: error?.message || String(error),
       response: error?.response?.data || error?.data || error?.body,
-      fullError: error,
     };
-    errors.push(errorInfo);
-    // Don't return early - try other strategies
+    return { ok: false, method: 'PUT', error, errorInfo };
   }
-
-  // Strategy B: PUT direct template object (single template upsert)
-  try {
-    const response = await apiClient.PUT(basePath, {
-      body: fullTemplate,
-    });
-    const result = response.data || response;
-    if (result && (result.id || result.templateType)) {
-      return { ok: true, method: 'PUT', response: result };
-    }
-    if (response.error) {
-      throw response.error;
-    }
-  } catch (error) {
-    const errorInfo = {
-      method: 'PUT (direct)',
-      url: basePath,
-      status: error?.status || error?.response?.status,
-      statusText: error?.statusText || error?.response?.statusText,
-      message: error?.message || String(error),
-      response: error?.response?.data || error?.data || error?.body,
-      fullError: error,
-    };
-    errors.push(errorInfo);
-  }
-
-  const combinedError = new Error('All create strategies failed');
-  combinedError.errors = errors;
-  return { ok: false, method: 'PUT', error: combinedError, errors };
 }
 
 /**
@@ -249,22 +159,18 @@ export async function syncEmailTemplates({
         let detailedError = `Failed to update email template (id=${existing.id}, ${local.templateType}/${local.languageTag}).\n`;
         detailedError += `Error: ${errorMsg}\n`;
         
-        if (attempt.errors && attempt.errors.length > 0) {
-          detailedError += '\nAttempted methods:\n';
-          for (const err of attempt.errors) {
-            detailedError += `  ${err.method} ${err.url || ''}: `;
-            detailedError += `Status ${err.status || 'N/A'}`;
-            if (err.statusText) detailedError += ` (${err.statusText})`;
-            detailedError += `\n    Message: ${err.message}\n`;
-            if (err.response) {
-              detailedError += `    Response: ${JSON.stringify(err.response, null, 2)}\n`;
-            }
+        if (attempt.errorInfo) {
+          detailedError += `  Method: ${attempt.errorInfo.method}\n`;
+          detailedError += `  URL: ${attempt.errorInfo.url}\n`;
+          if (attempt.errorInfo.status) {
+            detailedError += `  Status: ${attempt.errorInfo.status}\n`;
+          }
+          if (attempt.errorInfo.response) {
+            detailedError += `  Response: ${JSON.stringify(attempt.errorInfo.response, null, 2)}\n`;
           }
         }
         
-        const fullError = new Error(detailedError);
-        fullError.attempt = attempt;
-        throw fullError;
+        throw new Error(detailedError);
       }
 
       if (verbose && attempt.response) {
@@ -291,33 +197,18 @@ export async function syncEmailTemplates({
       detailedError += `Error: ${errorMsg}\n`;
       detailedError += `URL: /api/${emailTemplatesPath}\n`;
       
-      if (attempt.errors && attempt.errors.length > 0) {
-        detailedError += '\nAttempted methods:\n';
-        for (const err of attempt.errors) {
-          detailedError += `  ${err.method} ${err.url || ''}: `;
-          detailedError += `Status ${err.status || 'N/A'}`;
-          if (err.statusText) detailedError += ` (${err.statusText})`;
-          detailedError += `\n    Message: ${err.message}\n`;
-          if (err.response) {
-            detailedError += `    Response: ${JSON.stringify(err.response, null, 2)}\n`;
-          }
+      if (attempt.errorInfo) {
+        detailedError += `  Method: ${attempt.errorInfo.method}\n`;
+        detailedError += `  URL: ${attempt.errorInfo.url}\n`;
+        if (attempt.errorInfo.status) {
+          detailedError += `  Status: ${attempt.errorInfo.status}\n`;
         }
-      } else {
-        // Fallback: try to extract info from error object
-        const err = attempt.error;
-        if (err) {
-          detailedError += `\nError details:\n`;
-          detailedError += `  Type: ${err.constructor?.name || typeof err}\n`;
-          detailedError += `  Keys: ${Object.keys(err).join(', ')}\n`;
-          if (err.stack) {
-            detailedError += `  Stack: ${err.stack.split('\n').slice(0, 3).join('\n')}\n`;
-          }
+        if (attempt.errorInfo.response) {
+          detailedError += `  Response: ${JSON.stringify(attempt.errorInfo.response, null, 2)}\n`;
         }
       }
       
-      const fullError = new Error(detailedError);
-      fullError.attempt = attempt;
-      throw fullError;
+      throw new Error(detailedError);
     }
 
     // If the API returns the created object, refresh remote index for subsequent operations
