@@ -6,237 +6,6 @@ function makeKey(templateType, languageTag) {
 }
 
 /**
- * Update an existing email template by ID
- * @param {any} apiClient - Logto Management API client
- * @param {string} emailTemplatesPath - Path to email templates endpoint
- * @param {string} id - Template ID
- * @param {Object} fullTemplate - Full template object
- * @param {Object} options - Optional parameters
- * @param {Array} options.remoteTemplatesCache - Cached remote templates array (optional)
- * @param {Function} options.refreshCache - Function to refresh the cache (optional)
- * @returns {Promise<{ok: boolean, method: string, response: any}>}
- */
-async function tryUpdateById(
-  apiClient,
-  emailTemplatesPath,
-  id,
-  fullTemplate,
-  options = {}
-) {
-  const basePath = `/api/${emailTemplatesPath}`;
-
-  try {
-    // Logto API may not support updating by ID directly
-    // Try using the bulk update endpoint (same as create) with the template including ID
-    const templateWithId = { ...fullTemplate, id };
-    const response = await apiClient.PUT(basePath, {
-      body: { templates: [templateWithId] },
-    });
-    const method = "PUT";
-
-    // Check response status if available (SDK may include status in response)
-    const status = response.status || response.response?.status;
-    if (status && status >= 400) {
-      throw new Error(`API returned error status: ${status}`);
-    }
-
-    const result = response.data || response;
-
-    // Handle array response (bulk update returns array)
-    let template = result;
-    if (Array.isArray(result) && result.length > 0) {
-      template = result[0]; // Use first item from array
-    }
-
-    // Case 1: Response has expected fields (id or templateType) - valid success
-    if (template && (template.id || template.templateType)) {
-      return { ok: true, method, response: template };
-    }
-
-    // Case 2: Empty response (204 No Content or similar) - verify update by fetching template
-    // HTTP PUT/PATCH operations can succeed without returning a body, but we need to verify
-    if (
-      result === undefined ||
-      result === null ||
-      (typeof result === "object" && Object.keys(result).length === 0)
-    ) {
-      // Verify the update by fetching the template again
-      // Use cache if available to avoid multiple API calls
-      try {
-        let remoteTemplates = options.remoteTemplatesCache;
-
-        // If cache is not available or needs refresh, fetch it
-        if (!Array.isArray(remoteTemplates)) {
-          remoteTemplates = await listEmailTemplates(
-            apiClient,
-            emailTemplatesPath
-          );
-          // Update cache if refresh function is provided
-          if (options.refreshCache && Array.isArray(remoteTemplates)) {
-            options.refreshCache(remoteTemplates);
-          }
-        }
-
-        if (Array.isArray(remoteTemplates)) {
-          const updatedTemplate = remoteTemplates.find(
-            (t) =>
-              t?.id === id ||
-              (t?.templateType === fullTemplate.templateType &&
-                t?.languageTag === fullTemplate.languageTag)
-          );
-          if (updatedTemplate) {
-            // Verify that the content actually changed
-            const localContent = fullTemplate.details?.content || "";
-            const remoteContent = updatedTemplate.details?.content || "";
-            if (localContent === remoteContent) {
-              return { ok: true, method, response: updatedTemplate };
-            } else {
-              // Content doesn't match - update may have failed silently
-              // Refresh cache and try once more to account for eventual consistency
-              if (!options.remoteTemplatesCache && options.refreshCache) {
-                const refreshedTemplates = await listEmailTemplates(
-                  apiClient,
-                  emailTemplatesPath
-                );
-                if (Array.isArray(refreshedTemplates)) {
-                  options.refreshCache(refreshedTemplates);
-                  const refreshedTemplate = refreshedTemplates.find(
-                    (t) =>
-                      t?.id === id ||
-                      (t?.templateType === fullTemplate.templateType &&
-                        t?.languageTag === fullTemplate.languageTag)
-                  );
-                  if (refreshedTemplate) {
-                    const refreshedContent =
-                      refreshedTemplate.details?.content || "";
-                    if (localContent === refreshedContent) {
-                      return { ok: true, method, response: refreshedTemplate };
-                    }
-                  }
-                }
-              }
-
-              // Content doesn't match - update may have failed silently
-              // eslint-disable-next-line no-console
-              console.warn(
-                `[WARN] Template update returned empty response, but fetched template content doesn't match. ` +
-                  `This may indicate the update failed. Template: ${fullTemplate.templateType}/${fullTemplate.languageTag}`
-              );
-              return {
-                ok: false,
-                method,
-                error: new Error(
-                  "Update verification failed: content mismatch"
-                ),
-                errorInfo: {
-                  method,
-                  url: basePath,
-                  status: 200,
-                  message: "Content mismatch after update",
-                },
-              };
-            }
-          }
-        }
-        // If we can't verify, assume success but log a warning
-        // eslint-disable-next-line no-console
-        console.warn(
-          `[WARN] Template update returned empty response and couldn't verify update. ` +
-            `Template: ${fullTemplate.templateType}/${fullTemplate.languageTag}. ` +
-            `Please verify manually or use --verbose flag.`
-        );
-        return { ok: true, method, response: fullTemplate };
-      } catch (verifyError) {
-        // If verification fails, log warning but don't fail the update
-        // eslint-disable-next-line no-console
-        console.warn(
-          `[WARN] Could not verify template update after empty response: ${
-            verifyError?.message || String(verifyError)
-          }. ` +
-            `Template: ${fullTemplate.templateType}/${fullTemplate.languageTag}`
-        );
-        return { ok: true, method, response: fullTemplate };
-      }
-    }
-
-    // Case 3: Response exists but doesn't match expected format - this is suspicious
-    // Log a warning but don't fail, as the HTTP request succeeded
-    // However, we should validate that it's not an error response
-    if (result && typeof result === "object") {
-      // Check if it looks like an error response
-      if (result.error || result.code || result.message) {
-        throw new Error(
-          `API returned error response: ${JSON.stringify(result)}`
-        );
-      }
-      // If it's a valid object but unexpected format, log but accept it
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[WARN] Unexpected response format for template update (id=${id}):`,
-        JSON.stringify(result)
-      );
-      return { ok: true, method, response: result };
-    }
-
-    // Case 4: Unexpected response type - this should not happen
-    throw new Error(
-      `Update succeeded but response format is invalid: received ${typeof result}`
-    );
-  } catch (error) {
-    const errorStatus = error?.status || error?.response?.status;
-    const errorMethod =
-      errorStatus === 405 ? "PATCH/PUT" : error?.method || "PUT";
-    const errorInfo = {
-      method: errorMethod,
-      url: basePath, // Actual URL used for PUT request (without ID)
-      status: errorStatus,
-      message: error?.message || String(error),
-      response: error?.response?.data || error?.data || error?.body,
-    };
-    return { ok: false, method: errorMethod, error, errorInfo };
-  }
-}
-
-/**
- * Create a new email template
- * @param {any} apiClient - Logto Management API client
- * @param {string} emailTemplatesPath - Path to email templates endpoint
- * @param {Object} fullTemplate - Full template object
- * @returns {Promise<{ok: boolean, method: string, response: any}>}
- */
-async function tryCreate(apiClient, emailTemplatesPath, fullTemplate) {
-  const basePath = `/api/${emailTemplatesPath}`;
-
-  try {
-    const response = await apiClient.PUT(basePath, {
-      body: { templates: [fullTemplate] },
-    });
-    const result = response.data || response;
-    if (result) {
-      // If response is array, return first item; otherwise return as-is
-      const template = Array.isArray(result) ? result[0] : result;
-      if (template && (template.id || template.templateType)) {
-        return { ok: true, method: "PUT", response: template };
-      }
-      // If result is the full template object directly
-      if (result.templateType || result.languageTag) {
-        return { ok: true, method: "PUT", response: result };
-      }
-    }
-    throw new Error("Create succeeded but response format is invalid");
-  } catch (error) {
-    const errorInfo = {
-      method: "PUT",
-      url: basePath,
-      status: error?.status || error?.response?.status,
-      message: error?.message || String(error),
-      response: error?.response?.data || error?.data || error?.body,
-    };
-    return { ok: false, method: "PUT", error, errorInfo };
-  }
-}
-
-/**
  * List all email templates from Logto Management API
  * @param {any} apiClient - Logto Management API client
  * @param {string} emailTemplatesPath - Path to email templates endpoint
@@ -261,7 +30,9 @@ export async function listEmailTemplates(apiClient, emailTemplatesPath) {
 }
 
 /**
- * Sync local email templates to Logto Management API
+ * Sync local email templates to Logto Management API using bulk update
+ * According to Logto API docs: https://openapi.logto.io/operation/operation-replaceemailtemplates
+ * PUT /api/email-templates accepts an array of templates and will create or update them
  * @param {Object} params
  * @param {any} params.apiClient - Logto Management API client
  * @param {string} params.emailTemplatesPath - Path to email templates endpoint
@@ -277,6 +48,7 @@ export async function syncEmailTemplates({
   dryRun = false,
   verbose = false,
 }) {
+  // Get existing templates to determine action (create vs update)
   const remoteTemplates = await listEmailTemplates(
     apiClient,
     emailTemplatesPath
@@ -290,149 +62,112 @@ export async function syncEmailTemplates({
     }
   }
 
-  // Cache for remote templates to avoid repeated API calls during verification
-  let remoteTemplatesCache = remoteTemplates;
-  const refreshCache = (newTemplates) => {
-    remoteTemplatesCache = newTemplates;
-    // Also update the index
-    remoteIndex.clear();
-    if (Array.isArray(newTemplates)) {
-      for (const t of newTemplates) {
-        if (!t?.templateType || !t?.languageTag) continue;
-        remoteIndex.set(makeKey(t.templateType, t.languageTag), t);
-      }
-    }
-  };
+  // Prepare templates array for bulk update
+  const templatesToSync = localTemplates.map((local) => ({
+    languageTag: local.languageTag,
+    templateType: local.templateType,
+    details: local.details,
+  }));
 
   const results = [];
 
+  // Determine actions for dry-run
   for (const local of localTemplates) {
     const key = makeKey(local.templateType, local.languageTag);
     const existing = hasRemoteIndex ? remoteIndex.get(key) : null;
-
-    const fullTemplate = {
-      languageTag: local.languageTag,
-      templateType: local.templateType,
-      details: local.details,
-    };
-
     const action = hasRemoteIndex ? (existing ? "update" : "create") : "upsert";
-
-    if (dryRun) {
-      results.push({
-        action,
-        key,
-        local,
-        remote: existing || null,
-        dryRun: true,
-      });
-      continue;
-    }
-
-    if (existing?.id) {
-      const attempt = await tryUpdateById(
-        apiClient,
-        emailTemplatesPath,
-        existing.id,
-        fullTemplate,
-        {
-          remoteTemplatesCache,
-          refreshCache,
-        }
-      );
-
-      if (!attempt.ok) {
-        const errorMsg = attempt.error?.message || String(attempt.error);
-        let detailedError = `Failed to update email template (id=${existing.id}, ${local.templateType}/${local.languageTag}).\n`;
-        detailedError += `Error: ${errorMsg}\n`;
-
-        if (attempt.errorInfo) {
-          detailedError += `  Method: ${attempt.errorInfo.method}\n`;
-          detailedError += `  URL: ${attempt.errorInfo.url}\n`;
-          if (attempt.errorInfo.status) {
-            detailedError += `  Status: ${attempt.errorInfo.status}\n`;
-          }
-          if (attempt.errorInfo.response) {
-            detailedError += `  Response: ${JSON.stringify(
-              attempt.errorInfo.response,
-              null,
-              2
-            )}\n`;
-          }
-        }
-
-        // Add helpful context for common errors
-        if (errorMsg.includes("fetch failed") || errorMsg.includes("network")) {
-          detailedError += `\nNote: This appears to be a network error. Please check:\n`;
-          detailedError += `  - Your network connection\n`;
-          detailedError += `  - The Logto API endpoint is accessible\n`;
-          detailedError += `  - Your API credentials are valid\n`;
-        }
-
-        throw new Error(detailedError);
-      }
-
-      if (verbose && attempt.response) {
-        // eslint-disable-next-line no-console
-        console.log(JSON.stringify(attempt.response, null, 2));
-      }
-
-      results.push({
-        action,
-        key,
-        request: { method: attempt.method },
-        local,
-        remote: existing,
-      });
-
-      continue;
-    }
-
-    const attempt = await tryCreate(
-      apiClient,
-      emailTemplatesPath,
-      fullTemplate
-    );
-
-    if (!attempt.ok) {
-      const errorMsg = attempt.error?.message || String(attempt.error);
-      let detailedError = `Failed to create email template (${local.templateType}/${local.languageTag}).\n`;
-      detailedError += `Error: ${errorMsg}\n`;
-      detailedError += `URL: /api/${emailTemplatesPath}\n`;
-
-      if (attempt.errorInfo) {
-        detailedError += `  Method: ${attempt.errorInfo.method}\n`;
-        detailedError += `  URL: ${attempt.errorInfo.url}\n`;
-        if (attempt.errorInfo.status) {
-          detailedError += `  Status: ${attempt.errorInfo.status}\n`;
-        }
-        if (attempt.errorInfo.response) {
-          detailedError += `  Response: ${JSON.stringify(
-            attempt.errorInfo.response,
-            null,
-            2
-          )}\n`;
-        }
-      }
-
-      throw new Error(detailedError);
-    }
-
-    // If the API returns the created object, refresh remote index for subsequent operations
-    if (attempt.response?.id) {
-      remoteIndex.set(key, attempt.response);
-    }
 
     results.push({
       action,
       key,
-      request: { method: attempt.method },
       local,
-      remote: null,
+      remote: existing || null,
+      dryRun,
     });
   }
 
-  return results;
+  if (dryRun) {
+    return results;
+  }
+
+  // Perform bulk update via PUT /api/email-templates
+  const basePath = `/api/${emailTemplatesPath}`;
+  try {
+    const response = await apiClient.PUT(basePath, {
+      body: { templates: templatesToSync },
+    });
+
+    const status = response.status || response.response?.status;
+    if (status && status >= 400) {
+      throw new Error(`API returned error status: ${status}`);
+    }
+
+    const result = response.data || response;
+    const updatedTemplates = Array.isArray(result) ? result : [];
+
+    // Update results with actual response
+    const updatedIndex = new Map();
+    for (const template of updatedTemplates) {
+      if (template?.templateType && template?.languageTag) {
+        updatedIndex.set(
+          makeKey(template.templateType, template.languageTag),
+          template
+        );
+      }
+    }
+
+    // Update results with response data
+    for (let i = 0; i < results.length; i++) {
+      const local = localTemplates[i];
+      const key = makeKey(local.templateType, local.languageTag);
+      const updatedTemplate = updatedIndex.get(key);
+      const existing = hasRemoteIndex ? remoteIndex.get(key) : null;
+
+      results[i] = {
+        ...results[i],
+        request: { method: "PUT" },
+        remote: updatedTemplate || existing || null,
+      };
+
+      if (verbose && updatedTemplate) {
+        // eslint-disable-next-line no-console
+        console.log(
+          `${results[i].action} ${key}:`,
+          JSON.stringify(updatedTemplate, null, 2)
+        );
+      }
+    }
+
+    return results;
+  } catch (error) {
+    const errorStatus = error?.status || error?.response?.status;
+    const errorMsg = error?.message || String(error);
+    let detailedError = `Failed to sync email templates via bulk update.\n`;
+    detailedError += `Error: ${errorMsg}\n`;
+    detailedError += `URL: ${basePath}\n`;
+
+    if (errorStatus) {
+      detailedError += `Status: ${errorStatus}\n`;
+    }
+
+    if (error?.response?.data || error?.data || error?.body) {
+      detailedError += `Response: ${JSON.stringify(
+        error?.response?.data || error?.data || error?.body,
+        null,
+        2
+      )}\n`;
+    }
+
+    // Add helpful context for common errors
+    if (errorMsg.includes("fetch failed") || errorMsg.includes("network")) {
+      detailedError += `\nNote: This appears to be a network error. Please check:\n`;
+      detailedError += `  - Your network connection\n`;
+      detailedError += `  - The Logto API endpoint is accessible\n`;
+      detailedError += `  - Your API credentials are valid\n`;
+    }
+
+    throw new Error(detailedError);
+  }
 }
 
 /**

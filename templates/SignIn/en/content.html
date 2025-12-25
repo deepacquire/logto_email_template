@@ -43,6 +43,21 @@
       margin-top: 32px;
     }
 
+    .logo-container {
+      margin-top: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .logo-container h2 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 700;
+      color: #191c1d;
+    }
+
     .verification-code {
       margin: 20px 0;
       background: #eff1f1;
@@ -67,11 +82,13 @@
   <div style="max-width: 698px; border-radius: 16px; border: 1px solid #E0E3E3; margin: 0 auto;">
     <div style="padding: 0 24px;">
       <center>
-        <img src="{{application.branding.logoUrl}}" alt="{{application.displayName}}" width="auto" height="40"
-          style="margin-top: 24px;" />
+        <div class="logo-container">
+          <img src="{{application.branding.logoUrl}}" alt="DeepAcquire" width="auto" height="40" />
+          <h2>DeepAcquire</h2>
+        </div>
         <h1>Verify your email to sign in</h1>
         <p>
-          We have received a sign in attempt for <strong>{{application.displayName}}</strong> with the following code.
+          We have received a sign in attempt for DeepAcquire with the following code.
           Please enter it in the page you opened to complete the sign in process.
         </p>
         <div class="verification-code">{{code}}</div>
