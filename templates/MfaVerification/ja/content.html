@@ -67,11 +67,13 @@
   <div style="max-width: 698px; border-radius: 16px; border: 1px solid #E0E3E3; margin: 0 auto;">
     <div style="padding: 0 24px;">
       <center>
-        <img src="{{application.branding.logoUrl}}" alt="{{application.displayName}}" width="auto" height="40"
-          style="margin-top: 24px;" />
+        <div style="margin-top: 24px;">
+          <img src="{{application.branding.logoUrl}}" alt="DeepAcquire" width="auto" height="40" />
+          <div style="font-size: 16px; font-weight: 600; color: #191c1d; margin-top: 8px;">DeepAcquire</div>
+        </div>
         <h1>MFA確認コード</h1>
         <p>
-          多要素認証が有効になっている <strong>{{application.displayName}}</strong> にサインインしています。以下のコードを入力して、サインインプロセスを完了してください。
+          多要素認証が有効になっている <strong>DeepAcquire</strong> にサインインしています。以下のコードを入力して、サインインプロセスを完了してください。
         </p>
         <div class="verification-code">{{code}}</div>
         <p style="color: #747778;">
