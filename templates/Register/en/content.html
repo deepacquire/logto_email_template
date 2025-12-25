@@ -67,11 +67,13 @@
   <div style="max-width: 698px; border-radius: 16px; border: 1px solid #E0E3E3; margin: 0 auto;">
     <div style="padding: 0 24px;">
       <center>
-        <img src="{{application.branding.logoUrl}}" alt="{{application.displayName}}" width="auto" height="40"
-          style="margin-top: 24px;" />
+        <div style="margin-top: 24px;">
+          <img src="{{application.branding.logoUrl}}" alt="{{#if application.displayName}}{{application.displayName}}{{else}}DeepAcquire{{/if}}" width="auto" height="40" />
+          <div style="font-size: 14px; color: #747778; margin-top: 8px;">DeepAcquire</div>
+        </div>
         <h1>Verify your email to register</h1>
         <p>
-          We have received a registration request for <strong>{{application.displayName}}</strong> with the following code.
+          We have received a registration request for <strong>{{#if application.displayName}}{{application.displayName}}{{else}}DeepAcquire{{/if}}</strong> with the following code.
           Please enter it in the page you opened to complete the registration process.
         </p>
         <div class="verification-code">{{code}}</div>
