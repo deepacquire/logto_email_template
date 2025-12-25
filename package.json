@@ -1,0 +1,20 @@
+{
+  "name": "logto-email-templates-as-code",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "sync": "node src/cli.js sync",
+    "export": "node src/cli.js export",
+    "help": "node src/cli.js --help"
+  },
+  "dependencies": {
+    "@logto/api": "^1.0.0"
+  }
+}
+
+

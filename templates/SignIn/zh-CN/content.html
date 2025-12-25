@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>邮箱验证码</title>
+    <style>
+      body {
+        font-family: -apple-system, system-ui, Segoe UI, Roboto, Arial, sans-serif;
+        background: #ffffff;
+        color: #191c1d;
+        padding: 24px;
+      }
+      .code {
+        margin: 16px 0;
+        padding: 18px 20px;
+        background: #eff1f1;
+        border-radius: 12px;
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        display: inline-block;
+      }
+      .muted {
+        color: #747778;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>登录邮箱验证</h2>
+    <p class="muted">
+      你正在登录 <strong>{{application.name}}</strong>，请在打开的页面中输入以下验证码：
+    </p>
+    <div class="code">{{code}}</div>
+    <p class="muted">如果不是你本人操作，请忽略此邮件。验证码 10 分钟后过期。</p>
+  </body>
+</html>
+
+

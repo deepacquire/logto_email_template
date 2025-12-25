@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Verify your email</title>
+    <style>
+      body {
+        font-family: -apple-system, system-ui, Segoe UI, Roboto, Arial, sans-serif;
+        background: #ffffff;
+        color: #191c1d;
+        padding: 24px;
+      }
+      .code {
+        margin: 16px 0;
+        padding: 18px 20px;
+        background: #eff1f1;
+        border-radius: 12px;
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        display: inline-block;
+      }
+      .muted {
+        color: #747778;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Verify your email to sign in</h2>
+    <p class="muted">
+      You are signing in to <strong>{{application.name}}</strong>. Enter the following verification
+      code on the page you opened:
+    </p>
+    <div class="code">{{code}}</div>
+    <p class="muted">If you didn’t request this, you can ignore this email. The code expires in 10 minutes.</p>
+  </body>
+</html>
+
+
