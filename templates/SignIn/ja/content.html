@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ログインするためにメールアドレスを確認してください</title>
+  <style>
+    .auth-service-by:hover .mini-logo {
+      display: none !important;
+    }
+
+    .auth-service-by:hover .mini-logo-color {
+      display: block !important;
+    }
+
+    body {
+      font-family:
+        'SF Pro Text',
+        -apple-system,
+        system-ui,
+        BlinkMacSystemFont,
+        'Segoe UI',
+        Roboto,
+        Arial,
+        sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      font-smooth: always;
+      background-color: #fff;
+      color: #191c1d;
+      max-width: 640px;
+      padding: 32px 0;
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 20px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 32px;
+      margin-top: 32px;
+    }
+
+    .verification-code {
+      margin: 20px 0;
+      background: #eff1f1;
+      border-radius: 12px;
+      padding: 36px;
+      font-size: 32px;
+      font-weight: 600;
+      line-height: 40px;
+      text-align: center;
+      letter-spacing: 4px;
+    }
+
+    .footer {
+      text-align: center;
+      color: #a9acac;
+      margin-top: 48px;
+    }
+  </style>
+  </head>
+  
+  <body>
+  <div style="max-width: 698px; border-radius: 16px; border: 1px solid #E0E3E3; margin: 0 auto;">
+    <div style="padding: 0 24px;">
+      <center>
+        <img src="{{application.branding.logoUrl}}" alt="{{application.displayName}}" width="auto" height="40"
+          style="margin-top: 24px;" />
+        <h1>ログインするためにメールアドレスを確認してください</h1>
+        <p>
+          <strong>{{application.displayName}}</strong> へのログイン試行を受け取りました。以下のコードを開いたページに入力して、ログイン処理を完了してください。
+        </p>
+        <div class="verification-code">{{code}}</div>
+        <p style="color: #747778;">
+          ログインを試みていないのにこのメールを受信した場合は、無視してください。コードは10分間有効です。
+        </p>
+      </center>
+    </div>
+  </div>
+  <div class="footer">
+    <hr />
+    <p style="font-size: 14px; line-height: 20px; margin: 20px 0;">
+      <a href="https://deepacquire.com" style="color: #A9ACAC; text-decoration: underline;">DeepAcquire</a>:
+      AIの能力をあなたのものに
+    </p>
+    </div>
+    </body>
+    
+    </html>
+

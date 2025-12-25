@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-TW">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>組織邀請</title>
+  <style>
+    .auth-service-by:hover .mini-logo {
+      display: none !important;
+    }
+
+    .auth-service-by:hover .mini-logo-color {
+      display: block !important;
+    }
+
+    body {
+      font-family:
+        'SF Pro Text',
+        -apple-system,
+        system-ui,
+        BlinkMacSystemFont,
+        'Segoe UI',
+        Roboto,
+        Arial,
+        sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      font-smooth: always;
+      background-color: #fff;
+      color: #191c1d;
+      max-width: 640px;
+      padding: 32px 0;
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 20px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 32px;
+      margin-top: 32px;
+    }
+
+    .invitation-link {
+      margin: 20px 0;
+      background: #eff1f1;
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+    }
+
+    .invitation-link a {
+      color: #191c1d;
+      text-decoration: none;
+      word-break: break-all;
+      font-size: 14px;
+    }
+
+    .footer {
+      text-align: center;
+      color: #a9acac;
+      margin-top: 48px;
+    }
+  </style>
+</head>
+
+<body>
+  <div style="max-width: 698px; border-radius: 16px; border: 1px solid #E0E3E3; margin: 0 auto;">
+    <div style="padding: 0 24px;">
+      <center>
+        <img src="{{application.branding.logoUrl}}" alt="{{application.displayName}}" width="auto" height="40"
+          style="margin-top: 24px;" />
+        <h1>組織邀請</h1>
+        <p>
+          您已被邀請加入 <strong>{{organization.name}}</strong> 在 <strong>{{application.displayName}}</strong>。點擊下面的連結接受邀請。
+        </p>
+        <div class="invitation-link">
+          <a href="{{link}}">{{link}}</a>
+        </div>
+        <p style="color: #747778;">
+          如果您沒有收到此邀請的預期，請忽略此郵件。
+        </p>
+      </center>
+    </div>
+  </div>
+  <div class="footer">
+    <hr />
+    <p style="font-size: 14px; line-height: 20px; margin: 20px 0;">
+      <a href="https://deepacquire.com" style="color: #A9ACAC; text-decoration: underline;">DeepAcquire</a>:
+      把 AI 的能力變成你自己的
+    </p>
+  </div>
+</body>
+
+</html>

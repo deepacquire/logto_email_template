@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Code de vérification MFA</title>
+  <style>
+    .auth-service-by:hover .mini-logo {
+      display: none !important;
+    }
+
+    .auth-service-by:hover .mini-logo-color {
+      display: block !important;
+    }
+
+    body {
+      font-family:
+        'SF Pro Text',
+        -apple-system,
+        system-ui,
+        BlinkMacSystemFont,
+        'Segoe UI',
+        Roboto,
+        Arial,
+        sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      font-smooth: always;
+      background-color: #fff;
+      color: #191c1d;
+      max-width: 640px;
+      padding: 32px 0;
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 20px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 32px;
+      margin-top: 32px;
+    }
+
+    .verification-code {
+      margin: 20px 0;
+      background: #eff1f1;
+      border-radius: 12px;
+      padding: 36px;
+      font-size: 32px;
+      font-weight: 600;
+      line-height: 40px;
+      text-align: center;
+      letter-spacing: 4px;
+    }
+
+    .footer {
+      text-align: center;
+      color: #a9acac;
+      margin-top: 48px;
+    }
+  </style>
+</head>
+
+<body>
+  <div style="max-width: 698px; border-radius: 16px; border: 1px solid #E0E3E3; margin: 0 auto;">
+    <div style="padding: 0 24px;">
+      <center>
+        <img src="{{application.branding.logoUrl}}" alt="{{application.displayName}}" width="auto" height="40"
+          style="margin-top: 24px;" />
+        <h1>Code de vérification MFA</h1>
+        <p>
+          Vous vous connectez à <strong>{{application.displayName}}</strong> avec l'authentification multifacteur activée. Veuillez entrer le code suivant pour terminer le processus de connexion.
+        </p>
+        <div class="verification-code">{{code}}</div>
+        <p style="color: #747778;">
+          Si vous n'avez pas tenté de vous connecter mais avez reçu cet e-mail, veuillez l'ignorer et sécuriser votre compte immédiatement. Le code restera actif pendant 10 minutes.
+        </p>
+      </center>
+    </div>
+  </div>
+  <div class="footer">
+    <hr />
+    <p style="font-size: 14px; line-height: 20px; margin: 20px 0;">
+      <a href="https://deepacquire.com" style="color: #A9ACAC; text-decoration: underline;">DeepAcquire</a>:
+      Faites des capacités de l'IA les vôtres
+    </p>
+  </div>
+</body>
+
+</html>

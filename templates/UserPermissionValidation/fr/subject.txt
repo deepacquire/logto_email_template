@@ -1,0 +1,2 @@
+Code de validation des permissions
+
