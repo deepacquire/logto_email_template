@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>验证您的邮箱以登录</title>
+  <title>Verify your email to register</title>
   <style>
     .auth-service-by:hover .mini-logo {
       display: none !important;
@@ -61,7 +61,7 @@
       margin-top: 48px;
     }
   </style>
-  </head>
+</head>
 
 <body>
   <div style="max-width: 698px; border-radius: 16px; border: 1px solid #E0E3E3; margin: 0 auto;">
@@ -69,13 +69,15 @@
       <center>
         <img src="{{application.branding.logoUrl}}" alt="{{application.displayName}}" width="auto" height="40"
           style="margin-top: 24px;" />
-        <h1>验证您的邮箱以登录</h1>
+        <h1>Verify your email to register</h1>
         <p>
-          我们收到了登录 <strong>{{application.displayName}}</strong> 的请求，请在您打开的页面中输入以下验证码以完成登录。
+          We have received a registration request for <strong>{{application.displayName}}</strong> with the following code.
+          Please enter it in the page you opened to complete the registration process.
         </p>
         <div class="verification-code">{{code}}</div>
         <p style="color: #747778;">
-          如果您没有尝试登录但收到了此邮件，请忽略它。验证码将在 10 分钟后失效。
+          If you did not attempt to register but received this email, please ignore it. The code
+          will remain active for 10 minutes.
         </p>
       </center>
     </div>
@@ -84,9 +86,10 @@
     <hr />
     <p style="font-size: 14px; line-height: 20px; margin: 20px 0;">
       <a href="https://deepacquire.com" style="color: #A9ACAC; text-decoration: underline;">DeepAcquire</a>:
-      把 AI 的能力变成你自己的
+      Make AI's capabilities your own.
     </p>
   </div>
-  </body>
+</body>
 
 </html>
+

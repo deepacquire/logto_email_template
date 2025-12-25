@@ -39,36 +39,80 @@ export async function listEmailTemplates(apiClient, emailTemplatesPath) {
  */
 async function tryUpdateById(apiClient, emailTemplatesPath, id, fullTemplate) {
   const basePath = `/api/${emailTemplatesPath}`;
+  const errors = [];
   
-  // Strategy A: PATCH {id} with full template
-  try {
-    const response = await apiClient.PATCH(`${basePath}/${id}`, {
-      body: fullTemplate,
-    });
-    if (response.data) {
-      return { ok: true, method: 'PATCH', response: response.data };
-    }
-  } catch (error) {
-    if (error?.status !== 404 && error?.status !== 405) {
-      return { ok: false, method: 'PATCH', error };
-    }
-  }
-
-  // Strategy B: PUT {id} with full template
+  // Strategy A: PUT {id} with full template
   try {
     const response = await apiClient.PUT(`${basePath}/${id}`, {
       body: fullTemplate,
     });
-    if (response.data) {
-      return { ok: true, method: 'PUT', response: response.data };
+    const result = response.data || response;
+    if (result && (result.id || result.templateType)) {
+      return { ok: true, method: 'PUT', response: result };
     }
   } catch (error) {
+    const errorInfo = {
+      method: 'PUT',
+      url: `${basePath}/${id}`,
+      status: error?.status || error?.response?.status,
+      statusText: error?.statusText || error?.response?.statusText,
+      message: error?.message || String(error),
+      response: error?.response?.data || error?.data || error?.body,
+    };
+    errors.push(errorInfo);
     if (error?.status !== 404 && error?.status !== 405) {
-      return { ok: false, method: 'PUT', error };
+      return { ok: false, method: 'PUT', error, errors: [errorInfo] };
     }
   }
 
-  return { ok: false, method: 'PUT', error: new Error('All update strategies failed') };
+  // Strategy B: PUT base with templates array (batch update)
+  try {
+    const response = await apiClient.PUT(basePath, {
+      body: { templates: [fullTemplate] },
+    });
+    const result = response.data || response;
+    if (result) {
+      const template = Array.isArray(result) ? result.find(t => t.id === id) || result[0] : result;
+      if (template && (template.id || template.templateType)) {
+        return { ok: true, method: 'PUT (batch)', response: template };
+      }
+    }
+  } catch (error) {
+    const errorInfo = {
+      method: 'PUT (batch)',
+      url: basePath,
+      status: error?.status || error?.response?.status,
+      statusText: error?.statusText || error?.response?.statusText,
+      message: error?.message || String(error),
+      response: error?.response?.data || error?.data || error?.body,
+    };
+    errors.push(errorInfo);
+  }
+
+  // Strategy C: PATCH {id} with full template
+  try {
+    const response = await apiClient.PATCH(`${basePath}/${id}`, {
+      body: fullTemplate,
+    });
+    const result = response.data || response;
+    if (result && (result.id || result.templateType)) {
+      return { ok: true, method: 'PATCH', response: result };
+    }
+  } catch (error) {
+    const errorInfo = {
+      method: 'PATCH',
+      url: `${basePath}/${id}`,
+      status: error?.status || error?.response?.status,
+      statusText: error?.statusText || error?.response?.statusText,
+      message: error?.message || String(error),
+      response: error?.response?.data || error?.data || error?.body,
+    };
+    errors.push(errorInfo);
+  }
+
+  const combinedError = new Error('All update strategies failed');
+  combinedError.errors = errors;
+  return { ok: false, method: 'PUT', error: combinedError, errors };
 }
 
 /**
@@ -80,34 +124,70 @@ async function tryUpdateById(apiClient, emailTemplatesPath, id, fullTemplate) {
  */
 async function tryCreate(apiClient, emailTemplatesPath, fullTemplate) {
   const basePath = `/api/${emailTemplatesPath}`;
+  const errors = [];
   
-  // Strategy A: POST base
+  // Strategy A: PUT with templates array (batch upsert - correct format)
   try {
-    const response = await apiClient.POST(basePath, {
-      body: fullTemplate,
+    const response = await apiClient.PUT(basePath, {
+      body: { templates: [fullTemplate] },
     });
-    if (response.data) {
-      return { ok: true, method: 'POST', response: response.data };
+    const result = response.data || response;
+    if (result) {
+      // If response is array, return first item; otherwise return as-is
+      const template = Array.isArray(result) ? result[0] : result;
+      if (template && (template.id || template.templateType)) {
+        return { ok: true, method: 'PUT (batch)', response: template };
+      }
+      // If result is the full template object directly
+      if (result.templateType || result.languageTag) {
+        return { ok: true, method: 'PUT (batch)', response: result };
+      }
+    }
+    if (response.error) {
+      throw response.error;
     }
   } catch (error) {
-    if (error?.status !== 404 && error?.status !== 405) {
-      return { ok: false, method: 'POST', error };
-    }
+    const errorInfo = {
+      method: 'PUT (batch)',
+      url: basePath,
+      status: error?.status || error?.response?.status,
+      statusText: error?.statusText || error?.response?.statusText,
+      message: error?.message || String(error),
+      response: error?.response?.data || error?.data || error?.body,
+      fullError: error,
+    };
+    errors.push(errorInfo);
+    // Don't return early - try other strategies
   }
 
-  // Strategy B: PUT base (some APIs use PUT for upsert)
+  // Strategy B: PUT direct template object (single template upsert)
   try {
     const response = await apiClient.PUT(basePath, {
       body: fullTemplate,
     });
-    if (response.data) {
-      return { ok: true, method: 'PUT', response: response.data };
+    const result = response.data || response;
+    if (result && (result.id || result.templateType)) {
+      return { ok: true, method: 'PUT', response: result };
+    }
+    if (response.error) {
+      throw response.error;
     }
   } catch (error) {
-    return { ok: false, method: 'PUT', error };
+    const errorInfo = {
+      method: 'PUT (direct)',
+      url: basePath,
+      status: error?.status || error?.response?.status,
+      statusText: error?.statusText || error?.response?.statusText,
+      message: error?.message || String(error),
+      response: error?.response?.data || error?.data || error?.body,
+      fullError: error,
+    };
+    errors.push(errorInfo);
   }
 
-  return { ok: false, method: 'POST', error: new Error('All create strategies failed') };
+  const combinedError = new Error('All create strategies failed');
+  combinedError.errors = errors;
+  return { ok: false, method: 'PUT', error: combinedError, errors };
 }
 
 /**
@@ -166,10 +246,25 @@ export async function syncEmailTemplates({
 
       if (!attempt.ok) {
         const errorMsg = attempt.error?.message || String(attempt.error);
-        throw new Error(
-          `Failed to update email template (id=${existing.id}, ${local.templateType}/${local.languageTag}). ` +
-            `Error: ${errorMsg}`
-        );
+        let detailedError = `Failed to update email template (id=${existing.id}, ${local.templateType}/${local.languageTag}).\n`;
+        detailedError += `Error: ${errorMsg}\n`;
+        
+        if (attempt.errors && attempt.errors.length > 0) {
+          detailedError += '\nAttempted methods:\n';
+          for (const err of attempt.errors) {
+            detailedError += `  ${err.method} ${err.url || ''}: `;
+            detailedError += `Status ${err.status || 'N/A'}`;
+            if (err.statusText) detailedError += ` (${err.statusText})`;
+            detailedError += `\n    Message: ${err.message}\n`;
+            if (err.response) {
+              detailedError += `    Response: ${JSON.stringify(err.response, null, 2)}\n`;
+            }
+          }
+        }
+        
+        const fullError = new Error(detailedError);
+        fullError.attempt = attempt;
+        throw fullError;
       }
 
       if (verbose && attempt.response) {
@@ -192,10 +287,37 @@ export async function syncEmailTemplates({
 
     if (!attempt.ok) {
       const errorMsg = attempt.error?.message || String(attempt.error);
-      throw new Error(
-        `Failed to create email template (${local.templateType}/${local.languageTag}). ` +
-          `Error: ${errorMsg}`
-      );
+      let detailedError = `Failed to create email template (${local.templateType}/${local.languageTag}).\n`;
+      detailedError += `Error: ${errorMsg}\n`;
+      detailedError += `URL: /api/${emailTemplatesPath}\n`;
+      
+      if (attempt.errors && attempt.errors.length > 0) {
+        detailedError += '\nAttempted methods:\n';
+        for (const err of attempt.errors) {
+          detailedError += `  ${err.method} ${err.url || ''}: `;
+          detailedError += `Status ${err.status || 'N/A'}`;
+          if (err.statusText) detailedError += ` (${err.statusText})`;
+          detailedError += `\n    Message: ${err.message}\n`;
+          if (err.response) {
+            detailedError += `    Response: ${JSON.stringify(err.response, null, 2)}\n`;
+          }
+        }
+      } else {
+        // Fallback: try to extract info from error object
+        const err = attempt.error;
+        if (err) {
+          detailedError += `\nError details:\n`;
+          detailedError += `  Type: ${err.constructor?.name || typeof err}\n`;
+          detailedError += `  Keys: ${Object.keys(err).join(', ')}\n`;
+          if (err.stack) {
+            detailedError += `  Stack: ${err.stack.split('\n').slice(0, 3).join('\n')}\n`;
+          }
+        }
+      }
+      
+      const fullError = new Error(detailedError);
+      fullError.attempt = attempt;
+      throw fullError;
     }
 
     // If the API returns the created object, refresh remote index for subsequent operations
@@ -262,5 +384,34 @@ export async function exportEmailTemplates({ apiClient, emailTemplatesPath, outD
     }
   }
 
-  return { count: remoteTemplates.length, outDir: outputRoot };
+  return { count: remoteTemplates.length, outDir: outputRoot, templates: remoteTemplates };
+}
+
+/**
+ * List all email templates from Logto (summary only, no file export)
+ * @param {Object} params
+ * @param {any} params.apiClient - Logto Management API client
+ * @param {string} params.emailTemplatesPath - Path to email templates endpoint
+ * @returns {Promise<Array>} Array of template summaries
+ */
+export async function listEmailTemplatesSummary({ apiClient, emailTemplatesPath }) {
+  const remoteTemplates = await listEmailTemplates(apiClient, emailTemplatesPath);
+  if (!Array.isArray(remoteTemplates)) {
+    throw new Error(
+      'Email template list endpoint is not available (got 404/405). ' +
+      'Set LOGTO_EMAIL_TEMPLATES_PATH to the correct path for your tenant.'
+    );
+  }
+
+  return remoteTemplates.map((t) => ({
+    id: t?.id,
+    templateType: t?.templateType,
+    languageTag: t?.languageTag,
+    subject: t?.details?.subject || '',
+    contentType: t?.details?.contentType || 'text/html',
+    hasContent: !!t?.details?.content,
+    contentLength: typeof t?.details?.content === 'string' ? t?.details?.content.length : 0,
+    replyTo: t?.details?.replyTo,
+    sendFrom: t?.details?.sendFrom,
+  }));
 }

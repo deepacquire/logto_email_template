@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>验证您的邮箱以登录</title>
+  <title>验证您的邮箱以注册</title>
   <style>
     .auth-service-by:hover .mini-logo {
       display: none !important;
@@ -61,7 +61,7 @@
       margin-top: 48px;
     }
   </style>
-  </head>
+</head>
 
 <body>
   <div style="max-width: 698px; border-radius: 16px; border: 1px solid #E0E3E3; margin: 0 auto;">
@@ -69,13 +69,13 @@
       <center>
         <img src="{{application.branding.logoUrl}}" alt="{{application.displayName}}" width="auto" height="40"
           style="margin-top: 24px;" />
-        <h1>验证您的邮箱以登录</h1>
+        <h1>验证您的邮箱以注册</h1>
         <p>
-          我们收到了登录 <strong>{{application.displayName}}</strong> 的请求，请在您打开的页面中输入以下验证码以完成登录。
+          我们收到了注册 <strong>{{application.displayName}}</strong> 的请求，请在您打开的页面中输入以下验证码以完成注册。
         </p>
         <div class="verification-code">{{code}}</div>
         <p style="color: #747778;">
-          如果您没有尝试登录但收到了此邮件，请忽略它。验证码将在 10 分钟后失效。
+          如果您没有尝试注册但收到了此邮件，请忽略它。验证码将在 10 分钟后失效。
         </p>
       </center>
     </div>
@@ -87,6 +87,7 @@
       把 AI 的能力变成你自己的
     </p>
   </div>
-  </body>
+</body>
 
 </html>
+
