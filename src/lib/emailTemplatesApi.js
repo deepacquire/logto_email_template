@@ -48,20 +48,6 @@ export async function syncEmailTemplates({
   dryRun = false,
   verbose = false,
 }) {
-  // Get existing templates to determine action (create vs update)
-  const remoteTemplates = await listEmailTemplates(
-    apiClient,
-    emailTemplatesPath
-  );
-  const remoteIndex = new Map();
-  const hasRemoteIndex = Array.isArray(remoteTemplates);
-  if (hasRemoteIndex) {
-    for (const t of remoteTemplates) {
-      if (!t?.templateType || !t?.languageTag) continue;
-      remoteIndex.set(makeKey(t.templateType, t.languageTag), t);
-    }
-  }
-
   // Prepare templates array for bulk update
   const templatesToSync = localTemplates.map((local) => ({
     languageTag: local.languageTag,
@@ -69,25 +55,15 @@ export async function syncEmailTemplates({
     details: local.details,
   }));
 
-  const results = [];
-
-  // Determine actions for dry-run
-  for (const local of localTemplates) {
-    const key = makeKey(local.templateType, local.languageTag);
-    const existing = hasRemoteIndex ? remoteIndex.get(key) : null;
-    const action = hasRemoteIndex ? (existing ? "update" : "create") : "upsert";
-
-    results.push({
-      action,
-      key,
-      local,
-      remote: existing || null,
-      dryRun,
-    });
-  }
-
+  // For dry-run, just return planned actions
   if (dryRun) {
-    return results;
+    return localTemplates.map((local) => ({
+      action: "upsert", // API handles both create and update
+      key: makeKey(local.templateType, local.languageTag),
+      local,
+      remote: null,
+      dryRun: true,
+    }));
   }
 
   // Perform bulk update via PUT /api/email-templates
@@ -105,7 +81,7 @@ export async function syncEmailTemplates({
     const result = response.data || response;
     const updatedTemplates = Array.isArray(result) ? result : [];
 
-    // Update results with actual response
+    // Create index for quick lookup
     const updatedIndex = new Map();
     for (const template of updatedTemplates) {
       if (template?.templateType && template?.languageTag) {
@@ -116,27 +92,24 @@ export async function syncEmailTemplates({
       }
     }
 
-    // Update results with response data
-    for (let i = 0; i < results.length; i++) {
-      const local = localTemplates[i];
+    // Build results array
+    const results = localTemplates.map((local) => {
       const key = makeKey(local.templateType, local.languageTag);
       const updatedTemplate = updatedIndex.get(key);
-      const existing = hasRemoteIndex ? remoteIndex.get(key) : null;
-
-      results[i] = {
-        ...results[i],
-        request: { method: "PUT" },
-        remote: updatedTemplate || existing || null,
-      };
 
       if (verbose && updatedTemplate) {
         // eslint-disable-next-line no-console
-        console.log(
-          `${results[i].action} ${key}:`,
-          JSON.stringify(updatedTemplate, null, 2)
-        );
+        console.log(`upsert ${key}:`, JSON.stringify(updatedTemplate, null, 2));
       }
-    }
+
+      return {
+        action: "upsert",
+        key,
+        local,
+        remote: updatedTemplate || null,
+        request: { method: "PUT" },
+      };
+    });
 
     return results;
   } catch (error) {
@@ -144,7 +117,6 @@ export async function syncEmailTemplates({
     const errorMsg = error?.message || String(error);
     let detailedError = `Failed to sync email templates via bulk update.\n`;
     detailedError += `Error: ${errorMsg}\n`;
-    detailedError += `URL: ${basePath}\n`;
 
     if (errorStatus) {
       detailedError += `Status: ${errorStatus}\n`;
