@@ -159,7 +159,7 @@ async function main() {
         // eslint-disable-next-line no-console
         console.log(`  - ${t.templateType}/${t.languageTag} (ID: ${t.id || 'N/A'})`);
         // eslint-disable-next-line no-console
-        console.log(`    Subject: ${t.details?.subject || '(empty)'}`);
+        console.log(`    Subject: ${t.details?.subject || 'DeepAcquire'}`);
         // eslint-disable-next-line no-console
         console.log(`    Content type: ${t.details?.contentType || 'text/html'}`);
         if (t.details?.replyTo) {

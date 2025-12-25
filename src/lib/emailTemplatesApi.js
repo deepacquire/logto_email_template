@@ -11,9 +11,18 @@ function makeKey(templateType, languageTag) {
  * @param {string} emailTemplatesPath - Path to email templates endpoint
  * @param {string} id - Template ID
  * @param {Object} fullTemplate - Full template object
+ * @param {Object} options - Optional parameters
+ * @param {Array} options.remoteTemplatesCache - Cached remote templates array (optional)
+ * @param {Function} options.refreshCache - Function to refresh the cache (optional)
  * @returns {Promise<{ok: boolean, method: string, response: any}>}
  */
-async function tryUpdateById(apiClient, emailTemplatesPath, id, fullTemplate) {
+async function tryUpdateById(
+  apiClient,
+  emailTemplatesPath,
+  id,
+  fullTemplate,
+  options = {}
+) {
   const basePath = `/api/${emailTemplatesPath}`;
 
   try {
@@ -44,14 +53,110 @@ async function tryUpdateById(apiClient, emailTemplatesPath, id, fullTemplate) {
       return { ok: true, method, response: template };
     }
 
-    // Case 2: Empty response (204 No Content or similar) - valid success for PUT/PATCH
-    // HTTP PUT/PATCH operations can succeed without returning a body
+    // Case 2: Empty response (204 No Content or similar) - verify update by fetching template
+    // HTTP PUT/PATCH operations can succeed without returning a body, but we need to verify
     if (
       result === undefined ||
       result === null ||
       (typeof result === "object" && Object.keys(result).length === 0)
     ) {
-      return { ok: true, method, response: fullTemplate }; // Return the sent template as confirmation
+      // Verify the update by fetching the template again
+      // Use cache if available to avoid multiple API calls
+      try {
+        let remoteTemplates = options.remoteTemplatesCache;
+
+        // If cache is not available or needs refresh, fetch it
+        if (!Array.isArray(remoteTemplates)) {
+          remoteTemplates = await listEmailTemplates(
+            apiClient,
+            emailTemplatesPath
+          );
+          // Update cache if refresh function is provided
+          if (options.refreshCache && Array.isArray(remoteTemplates)) {
+            options.refreshCache(remoteTemplates);
+          }
+        }
+
+        if (Array.isArray(remoteTemplates)) {
+          const updatedTemplate = remoteTemplates.find(
+            (t) =>
+              t?.id === id ||
+              (t?.templateType === fullTemplate.templateType &&
+                t?.languageTag === fullTemplate.languageTag)
+          );
+          if (updatedTemplate) {
+            // Verify that the content actually changed
+            const localContent = fullTemplate.details?.content || "";
+            const remoteContent = updatedTemplate.details?.content || "";
+            if (localContent === remoteContent) {
+              return { ok: true, method, response: updatedTemplate };
+            } else {
+              // Content doesn't match - update may have failed silently
+              // Refresh cache and try once more to account for eventual consistency
+              if (!options.remoteTemplatesCache && options.refreshCache) {
+                const refreshedTemplates = await listEmailTemplates(
+                  apiClient,
+                  emailTemplatesPath
+                );
+                if (Array.isArray(refreshedTemplates)) {
+                  options.refreshCache(refreshedTemplates);
+                  const refreshedTemplate = refreshedTemplates.find(
+                    (t) =>
+                      t?.id === id ||
+                      (t?.templateType === fullTemplate.templateType &&
+                        t?.languageTag === fullTemplate.languageTag)
+                  );
+                  if (refreshedTemplate) {
+                    const refreshedContent =
+                      refreshedTemplate.details?.content || "";
+                    if (localContent === refreshedContent) {
+                      return { ok: true, method, response: refreshedTemplate };
+                    }
+                  }
+                }
+              }
+
+              // Content doesn't match - update may have failed silently
+              // eslint-disable-next-line no-console
+              console.warn(
+                `[WARN] Template update returned empty response, but fetched template content doesn't match. ` +
+                  `This may indicate the update failed. Template: ${fullTemplate.templateType}/${fullTemplate.languageTag}`
+              );
+              return {
+                ok: false,
+                method,
+                error: new Error(
+                  "Update verification failed: content mismatch"
+                ),
+                errorInfo: {
+                  method,
+                  url: basePath,
+                  status: 200,
+                  message: "Content mismatch after update",
+                },
+              };
+            }
+          }
+        }
+        // If we can't verify, assume success but log a warning
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[WARN] Template update returned empty response and couldn't verify update. ` +
+            `Template: ${fullTemplate.templateType}/${fullTemplate.languageTag}. ` +
+            `Please verify manually or use --verbose flag.`
+        );
+        return { ok: true, method, response: fullTemplate };
+      } catch (verifyError) {
+        // If verification fails, log warning but don't fail the update
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[WARN] Could not verify template update after empty response: ${
+            verifyError?.message || String(verifyError)
+          }. ` +
+            `Template: ${fullTemplate.templateType}/${fullTemplate.languageTag}`
+        );
+        return { ok: true, method, response: fullTemplate };
+      }
     }
 
     // Case 3: Response exists but doesn't match expected format - this is suspicious
@@ -79,10 +184,11 @@ async function tryUpdateById(apiClient, emailTemplatesPath, id, fullTemplate) {
     );
   } catch (error) {
     const errorStatus = error?.status || error?.response?.status;
-    const errorMethod = errorStatus === 405 ? "PATCH/PUT" : (error?.method || "PATCH/PUT");
+    const errorMethod =
+      errorStatus === 405 ? "PATCH/PUT" : error?.method || "PUT";
     const errorInfo = {
       method: errorMethod,
-      url: `${basePath}/${id}`,
+      url: basePath, // Actual URL used for PUT request (without ID)
       status: errorStatus,
       message: error?.message || String(error),
       response: error?.response?.data || error?.data || error?.body,
@@ -184,6 +290,20 @@ export async function syncEmailTemplates({
     }
   }
 
+  // Cache for remote templates to avoid repeated API calls during verification
+  let remoteTemplatesCache = remoteTemplates;
+  const refreshCache = (newTemplates) => {
+    remoteTemplatesCache = newTemplates;
+    // Also update the index
+    remoteIndex.clear();
+    if (Array.isArray(newTemplates)) {
+      for (const t of newTemplates) {
+        if (!t?.templateType || !t?.languageTag) continue;
+        remoteIndex.set(makeKey(t.templateType, t.languageTag), t);
+      }
+    }
+  };
+
   const results = [];
 
   for (const local of localTemplates) {
@@ -214,7 +334,11 @@ export async function syncEmailTemplates({
         apiClient,
         emailTemplatesPath,
         existing.id,
-        fullTemplate
+        fullTemplate,
+        {
+          remoteTemplatesCache,
+          refreshCache,
+        }
       );
 
       if (!attempt.ok) {
@@ -235,6 +359,14 @@ export async function syncEmailTemplates({
               2
             )}\n`;
           }
+        }
+
+        // Add helpful context for common errors
+        if (errorMsg.includes("fetch failed") || errorMsg.includes("network")) {
+          detailedError += `\nNote: This appears to be a network error. Please check:\n`;
+          detailedError += `  - Your network connection\n`;
+          detailedError += `  - The Logto API endpoint is accessible\n`;
+          detailedError += `  - Your API credentials are valid\n`;
         }
 
         throw new Error(detailedError);
